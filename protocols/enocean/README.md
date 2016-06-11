@@ -9,7 +9,7 @@ Functional and technical descriptions:
 
 Tree
 ----
-    .
+
     - org.eclipse.smarthome.protocols.enocean.eeps.basic
                                        ; This bundle is an OSGi EnOcean bundle that contained the
                                        ; three EEPs (i.e. A5-02-05, D5-00-01, and F6-02-01) that 
@@ -61,9 +61,9 @@ g! lb
 START LEVEL 1
    ID|State      |Level|Name
     0|Active     |    0|System Bundle (4.4.1)
-    1|Active     |    1|org.eclipse.smarthome.protocols.enocean.eeps.basic (0.8.0)
-    2|Active     |    1|org.eclipse.smarthome.protocols.enocean.basedriver.impl (0.8.0)
-    3|Active     |    1|org.eclipse.smarthome.protocols.enocean.sample.client (0.8.0)
+    1|Active     |    1|org.eclipse.smarthome.protocols.enocean.eeps.basic (0.9.0)
+    2|Active     |    1|org.eclipse.smarthome.protocols.enocean.basedriver.impl (0.9.0)
+    3|Active     |    1|org.eclipse.smarthome.protocols.enocean.sample.client (0.9.0)
     4|Active     |    1|Apache Felix Bundle Repository (2.0.2)
     5|Active     |    1|Apache Felix EventAdmin (1.3.2)
     6|Active     |    1|Apache Felix Gogo Command (0.14.0)
@@ -80,8 +80,9 @@ START LEVEL 1
 Note
 ----
 Using the example app/bundle (org.eclipse.smarthome.protocols.enocean.sample.client) requires to 
-put the following lines in the enocean_config.txt configuration file of ``org.eclipse.smarthome.
+put the following lines in the enocean_config.txt configuration file of ```org.eclipse.smarthome.
 protocols.enocean.basedriver.impl```:
+
 ```
 0x018c0874_RORG_FUNC_TYPE_FRIENDLYNAME_DESCRIPTION=F6##99##99##Eltako Smoke Detector##(F6)
 0x01819912_RORG_FUNC_TYPE_FRIENDLYNAME_DESCRIPTION=F6##05##01##AfrisoLab Water Sensor##Liquid Leakage Sensor (mechanic energy harvester) (F6-05-01)

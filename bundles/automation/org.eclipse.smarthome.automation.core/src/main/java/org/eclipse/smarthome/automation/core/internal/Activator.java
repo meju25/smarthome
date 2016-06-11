@@ -9,6 +9,7 @@ package org.eclipse.smarthome.automation.core.internal;
 
 import java.util.Hashtable;
 
+import org.eclipse.smarthome.automation.Rule;
 import org.eclipse.smarthome.automation.RuleProvider;
 import org.eclipse.smarthome.automation.RuleRegistry;
 import org.eclipse.smarthome.automation.core.internal.composite.CompositeModuleHandlerFactory;
@@ -20,6 +21,7 @@ import org.eclipse.smarthome.automation.core.util.ConnectionValidator;
 import org.eclipse.smarthome.automation.events.RuleEventFactory;
 import org.eclipse.smarthome.automation.template.TemplateRegistry;
 import org.eclipse.smarthome.automation.type.ModuleTypeRegistry;
+import org.eclipse.smarthome.core.common.registry.ManagedProvider;
 import org.eclipse.smarthome.core.events.EventFactory;
 import org.eclipse.smarthome.core.events.EventPublisher;
 import org.eclipse.smarthome.core.storage.Storage;
@@ -75,8 +77,7 @@ public class Activator implements BundleActivator {
         props.put(Constants.SERVICE_PID, "smarthome.rule.configuration");
         configReg = bc.registerService(ManagedService.class.getName(), ruleEngine, props);
 
-        this.tManager = new TemplateManager(bc, ruleEngine);
-        ruleEngine.setTemplateManager(tManager);
+        this.tManager = new TemplateManager(bc);
         mtManager = new ModuleTypeManager(bc, ruleEngine);
         ruleEngine.setModuleTypeManager(mtManager);
         ruleEngine.setCompositeModuleFactory(new CompositeModuleHandlerFactory(bc, mtManager, ruleEngine));
@@ -89,7 +90,7 @@ public class Activator implements BundleActivator {
         ruleEventFactory = new RuleEventFactory();
         ruleEventFactoryReg = bc.registerService(EventFactory.class.getName(), ruleEventFactory, null);
 
-        ruleRegistry = new RuleRegistryImpl(ruleEngine);
+        ruleRegistry = new RuleRegistryImpl(ruleEngine, tManager, bc);
 
         Filter filter = bc.createFilter("(|(" + Constants.OBJECTCLASS + "=" + StorageService.class.getName() + ")("
                 + Constants.OBJECTCLASS + "=" + RuleProvider.class.getName() + ")(" + Constants.OBJECTCLASS + "="
@@ -107,8 +108,9 @@ public class Activator implements BundleActivator {
                                 this.getClass().getClassLoader());
                         ruleRegistry.setDisabledRuleStorage(storageDisabledRules);
                         final ManagedRuleProvider managedRuleProvider = new ManagedRuleProvider(storage);
-                        ruleEngine.setManagedRuleProvider(managedRuleProvider);
-                        managedRuleProviderReg = bc.registerService(RuleProvider.class.getName(), managedRuleProvider, null);
+                        ruleRegistry.setManagedProvider(managedRuleProvider);
+                        managedRuleProviderReg = bc.registerService(RuleProvider.class.getName(), managedRuleProvider,
+                                null);
                         return storage;
                     }
                 } else if (service instanceof RuleProvider) {
@@ -144,7 +146,11 @@ public class Activator implements BundleActivator {
                 } else if (service instanceof RuleProvider) {
                     if (ruleRegistry != null) {
                         RuleProvider rp = (RuleProvider) service;
-                        ruleRegistry.removeProvider(rp);
+                        if (rp instanceof ManagedRuleProvider) {
+                            ruleRegistry.removeManagedProvider((ManagedProvider<Rule, String>) rp);
+                        } else {
+                            ruleRegistry.removeProvider(rp);
+                        }
                     }
                 }
 

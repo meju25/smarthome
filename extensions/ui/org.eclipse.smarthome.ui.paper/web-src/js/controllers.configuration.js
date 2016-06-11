@@ -1,4 +1,4 @@
-angular.module('PaperUI.controllers.configuration', []).controller('ConfigurationPageController', function($scope, $location, thingTypeRepository) {
+angular.module('PaperUI.controllers.configuration', [ 'PaperUI.constants' ]).controller('ConfigurationPageController', function($scope, $location, thingTypeRepository) {
     $scope.navigateTo = function(path) {
         $location.path('configuration/' + path);
     }
@@ -141,9 +141,22 @@ angular.module('PaperUI.controllers.configuration', []).controller('Configuratio
 }).controller('ServicesController', function($scope, $mdDialog, serviceConfigService, toastService) {
     $scope.setSubtitle([ 'Services' ]);
     $scope.setHeaderText('Shows all configurable services.');
+    $scope.tabs = [];
     $scope.refresh = function() {
         serviceConfigService.getAll(function(services) {
-            $scope.services = services;
+            // $scope.services = services;
+            var arrOfIndex = [];
+            var index = 0;
+            angular.forEach(services, function(value) {
+                if (arrOfIndex[value.category] === undefined) {
+                    arrOfIndex[value.category] = index++;
+                }
+                if ($scope.tabs[arrOfIndex[value.category]] === undefined) {
+                    $scope.tabs[arrOfIndex[value.category]] = [];
+                    $scope.tabs[arrOfIndex[value.category]].category = value.category;
+                }
+                $scope.tabs[arrOfIndex[value.category]].push(value);
+            });
         });
     };
     $scope.add = function(serviceId, event) {
@@ -276,7 +289,7 @@ angular.module('PaperUI.controllers.configuration', []).controller('Configuratio
         });
     }
     $scope.refresh();
-}).controller('ViewThingController', function($scope, $mdDialog, toastService, thingTypeRepository, thingRepository, thingService, linkService, channelTypeService, configService, thingConfigService) {
+}).controller('ViewThingController', function($scope, $mdDialog, toastService, thingTypeRepository, thingRepository, thingService, linkService, channelTypeService, configService, thingConfigService, util) {
 
     var thingUID = $scope.path[4];
     $scope.thingTypeUID = null;
@@ -322,7 +335,7 @@ angular.module('PaperUI.controllers.configuration', []).controller('Configuratio
             $scope.linkChannel(channelID, event);
         } else {
             linkService.link({
-                itemName : $scope.thing.UID.replace(/:/g, "_") + '_' + channelID.replace(/#/g, "_"),
+                itemName : $scope.thing.UID.replace(/[^a-zA-Z0-9_]/g, "_") + '_' + channelID.replace(/[^a-zA-Z0-9_]/g, "_"),
                 channelUID : $scope.thing.UID + ':' + channelID
             }, function() {
                 $scope.getThing(true);
@@ -338,7 +351,7 @@ angular.module('PaperUI.controllers.configuration', []).controller('Configuratio
             $scope.unlinkChannel(channelID, event);
         } else {
             linkService.unlink({
-                itemName : $scope.thing.UID.replace(/:/g, "_") + '_' + channelID.replace(/#/g, "_"),
+                itemName : $scope.thing.UID.replace(/[^a-zA-Z0-9_]/g, "_") + '_' + channelID.replace(/[^a-zA-Z0-9_]/g, "_"),
                 channelUID : $scope.thing.UID + ':' + channelID
             }, function() {
                 $scope.getThing(true);
@@ -349,13 +362,15 @@ angular.module('PaperUI.controllers.configuration', []).controller('Configuratio
 
     $scope.linkChannel = function(channelID, event) {
         var channel = $scope.getChannelById(channelID);
+        var channelType = $scope.getChannelTypeById(channelID);
         $mdDialog.show({
             controller : 'LinkChannelDialogController',
             templateUrl : 'partials/dialog.linkchannel.html',
             targetEvent : event,
             hasBackdrop : true,
             linkedItem : channel.linkedItems.length > 0 ? channel.linkedItems[0] : '',
-            acceptedItemType : channel.itemType + 'Item'
+            acceptedItemType : channel.itemType + 'Item',
+            category : channelType.category ? channelType.category : ""
         }).then(function(itemName) {
             linkService.link({
                 itemName : itemName,
@@ -404,7 +419,7 @@ angular.module('PaperUI.controllers.configuration', []).controller('Configuratio
         if (!$scope.channelTypes) {
             return;
         }
-        thingConfigService.getChannelFromChannelTypes($scope.channelTypes, channelUID);
+        return thingConfigService.getChannelFromChannelTypes($scope.channelTypes, channelUID);
     };
 
     var getChannels = function(advanced) {
@@ -456,11 +471,11 @@ angular.module('PaperUI.controllers.configuration', []).controller('Configuratio
                 $scope.thingTypeChannels = thingType.channels && thingType.channels.length > 0 ? thingType.channels : thingType.channelGroups;
                 $scope.setHeaderText(thingType.description);
             }
-            $scope.refreshChannels(false);
+            $scope.refreshChannels($scope.showAdvanced);
         });
     }
 
-    $scope.configChannel = function(channel, thing) {
+    $scope.configChannel = function(channel, thing, event) {
         var channelType = this.getChannelFromChannelTypes(channel.channelTypeUID);
 
         $mdDialog.show({
@@ -475,6 +490,10 @@ angular.module('PaperUI.controllers.configuration', []).controller('Configuratio
             }
         });
     };
+
+    $scope.hasProperties = function(properties) {
+        return util.hasProperties(properties);
+    }
 }).controller('RemoveThingDialogController', function($scope, $mdDialog, toastService, thingService, thing) {
     $scope.thing = thing;
     $scope.isRemoving = thing.statusInfo.status === 'REMOVING';
@@ -495,12 +514,44 @@ angular.module('PaperUI.controllers.configuration', []).controller('Configuratio
             $mdDialog.hide();
         });
     }
-}).controller('LinkChannelDialogController', function($scope, $mdDialog, toastService, itemRepository, linkedItem, acceptedItemType) {
-    itemRepository.getAll(function(items) {
-        $scope.items = items;
-    });
+}).controller('LinkChannelDialogController', function($scope, $mdDialog, $filter, toastService, itemRepository, itemService, linkedItem, acceptedItemType, category) {
     $scope.itemName = linkedItem;
     $scope.acceptedItemType = acceptedItemType;
+    $scope.category = category;
+    $scope.itemFormVisible = false;
+    itemRepository.getAll(function(items) {
+        $scope.items = items;
+        $scope.items = $filter('filter')($scope.items, {
+            type : $scope.acceptedItemType
+        });
+        $scope.items = $filter('orderBy')($scope.items, "name");
+        $scope.items.push({
+            name : "_createNew",
+            type : $scope.acceptedItemType
+        });
+    });
+    $scope.checkCreateOption = function() {
+        if ($scope.itemName == "_createNew") {
+            $scope.itemFormVisible = true;
+        } else {
+            $scope.itemFormVisible = false;
+        }
+    }
+    $scope.createAndLink = function() {
+        var item = {
+            name : $scope.newItemName,
+            label : $scope.itemLabel,
+            type : $scope.acceptedItemType,
+            category : $scope.category
+        };
+        itemService.create({
+            itemName : $scope.newItemName
+        }, item).$promise.then(function() {
+            toastService.showDefaultToast("Item created");
+            itemRepository.setDirty(true);
+            $mdDialog.hide($scope.newItemName);
+        });
+    }
     $scope.close = function() {
         $mdDialog.cancel();
     }

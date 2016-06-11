@@ -12,6 +12,7 @@ import static org.eclipse.smarthome.binding.sonos.SonosBindingConstants.*;
 import static org.eclipse.smarthome.binding.sonos.config.ZonePlayerConfiguration.UDN;
 
 import java.math.BigDecimal;
+import java.net.URL;
 import java.text.ParseException;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
@@ -170,6 +171,11 @@ public class ZonePlayerHandler extends BaseThingHandler implements UpnpIOPartici
     @Override
     public void initialize() {
 
+        if (migrateThingType()) {
+            // we change the type, so we might need a different handler -> let's finish
+            return;
+        }
+
         Configuration configuration = getConfig();
 
         if (configuration.get("udn") != null) {
@@ -180,8 +186,6 @@ public class ZonePlayerHandler extends BaseThingHandler implements UpnpIOPartici
         } else {
             logger.warn("Cannot initalize the zoneplayer. UDN not set.");
         }
-
-        handleThingTypeRecreation();
     }
 
     @Override
@@ -2268,17 +2272,24 @@ public class ZonePlayerHandler extends BaseThingHandler implements UpnpIOPartici
     }
 
     private String getModelNameFromDescriptor() {
-        String sonosModelDescription = SonosXMLParser.parseModelDescription(service.getDescriptorURL(this));
-        return SonosXMLParser.extractModelName(sonosModelDescription);
+        URL descriptor = service.getDescriptorURL(this);
+        if (descriptor != null) {
+            String sonosModelDescription = SonosXMLParser.parseModelDescription(service.getDescriptorURL(this));
+            return SonosXMLParser.extractModelName(sonosModelDescription);
+        } else {
+            return null;
+        }
     }
 
-    private void handleThingTypeRecreation() {
+    private boolean migrateThingType() {
         if (getThing().getThingTypeUID().equals(ZONEPLAYER_THING_TYPE_UID)) {
             String modelName = getModelNameFromDescriptor();
             if (isSupportedModel(modelName)) {
                 updateSonosThingType(modelName);
+                return true;
             }
         }
+        return false;
     }
 
     private boolean isSupportedModel(String modelName) {

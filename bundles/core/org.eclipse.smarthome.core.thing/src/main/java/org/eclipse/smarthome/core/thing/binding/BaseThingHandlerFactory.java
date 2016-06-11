@@ -8,10 +8,10 @@
 package org.eclipse.smarthome.core.thing.binding;
 
 import java.util.Dictionary;
-import java.util.HashMap;
 import java.util.Hashtable;
 import java.util.Map;
 import java.util.Map.Entry;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.eclipse.smarthome.config.core.ConfigDescriptionRegistry;
 import org.eclipse.smarthome.config.core.Configuration;
@@ -19,12 +19,15 @@ import org.eclipse.smarthome.config.core.status.ConfigStatusProvider;
 import org.eclipse.smarthome.core.thing.Thing;
 import org.eclipse.smarthome.core.thing.ThingTypeUID;
 import org.eclipse.smarthome.core.thing.ThingUID;
+import org.eclipse.smarthome.core.thing.binding.firmware.FirmwareUpdateHandler;
 import org.eclipse.smarthome.core.thing.type.ThingType;
 import org.eclipse.smarthome.core.thing.type.ThingTypeRegistry;
 import org.osgi.framework.BundleContext;
 import org.osgi.framework.ServiceRegistration;
 import org.osgi.service.component.ComponentContext;
 import org.osgi.util.tracker.ServiceTracker;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * {@link BaseThingHandlerFactory} provides a base implementation for the {@link ThingHandlerFactory} interface. It
@@ -33,14 +36,16 @@ import org.osgi.util.tracker.ServiceTracker;
  * @author Dennis Nobel - Initial contribution
  * @author Benedikt Niehues - fix for Bug https://bugs.eclipse.org/bugs/show_bug.cgi?id=445137 considering
  *         default values
- * @author Thomas Höfer - added config status provider service registration
+ * @author Thomas Höfer - added config status provider and firmware update handler service registration
  */
 public abstract class BaseThingHandlerFactory implements ThingHandlerFactory {
 
+    private Logger logger = LoggerFactory.getLogger(BaseThingHandlerFactory.class);
     protected BundleContext bundleContext;
 
-    private Map<String, ServiceRegistration<ThingHandler>> thingHandlers = new HashMap<>();
-    private Map<String, ServiceRegistration<ConfigStatusProvider>> configStatusProviders = new HashMap<>();
+    private Map<String, ServiceRegistration<ThingHandler>> thingHandlers = new ConcurrentHashMap<>();
+    private Map<String, ServiceRegistration<ConfigStatusProvider>> configStatusProviders = new ConcurrentHashMap<>();
+    private Map<String, ServiceRegistration<FirmwareUpdateHandler>> firmwareUpdateHandlers = new ConcurrentHashMap<>();
 
     private ServiceTracker<ThingTypeRegistry, ThingTypeRegistry> thingTypeRegistryServiceTracker;
     private ServiceTracker<ConfigDescriptionRegistry, ConfigDescriptionRegistry> configDescriptionRegistryServiceTracker;
@@ -78,10 +83,16 @@ public abstract class BaseThingHandlerFactory implements ThingHandlerFactory {
                 serviceRegistration.unregister();
             }
         }
+        for (ServiceRegistration<FirmwareUpdateHandler> serviceRegistration : firmwareUpdateHandlers.values()) {
+            if (serviceRegistration != null) {
+                serviceRegistration.unregister();
+            }
+        }
         thingTypeRegistryServiceTracker.close();
         configDescriptionRegistryServiceTracker.close();
         this.thingHandlers.clear();
         this.configStatusProviders.clear();
+        this.firmwareUpdateHandlers.clear();
         this.bundleContext = null;
     }
 
@@ -90,12 +101,21 @@ public abstract class BaseThingHandlerFactory implements ThingHandlerFactory {
         ServiceRegistration<ThingHandler> thingHandlerServiceRegistration = thingHandlers
                 .remove(thing.getUID().toString());
         if (thingHandlerServiceRegistration != null) {
+            logger.debug("Removing service registration for handler of thing '{}'.", thing.getUID().getAsString());
             unregisterHandler(thingHandlerServiceRegistration);
+        } else {
+            logger.error("There is no service registration for a thing handler of thing '{}'.",
+                    thing.getUID().getAsString());
         }
         ServiceRegistration<ConfigStatusProvider> configStatusProviderServiceRegistration = configStatusProviders
                 .remove(thing.getUID().getAsString());
         if (configStatusProviderServiceRegistration != null) {
             configStatusProviderServiceRegistration.unregister();
+        }
+        ServiceRegistration<FirmwareUpdateHandler> firmwareUpdateHandlerServiceRegistration = firmwareUpdateHandlers
+                .remove(thing.getUID().getAsString());
+        if (firmwareUpdateHandlerServiceRegistration != null) {
+            firmwareUpdateHandlerServiceRegistration.unregister();
         }
     }
 
@@ -127,9 +147,15 @@ public abstract class BaseThingHandlerFactory implements ThingHandlerFactory {
         thingHandlers.put(thing.getUID().toString(), thingHandlderServiceRegistration);
 
         if (thingHandler instanceof ConfigStatusProvider) {
-            ServiceRegistration<ConfigStatusProvider> configStatusProviderServiceRegistration = registerConfigValidatorAsService(
+            ServiceRegistration<ConfigStatusProvider> configStatusProviderServiceRegistration = registerConfigStatusProviderAsService(
                     thingHandler);
             configStatusProviders.put(thing.getUID().getAsString(), configStatusProviderServiceRegistration);
+        }
+
+        if (thingHandler instanceof FirmwareUpdateHandler) {
+            ServiceRegistration<FirmwareUpdateHandler> firmwareUpdateHandlerServiceRegistration = registerFirmwareUpdateHandlerAsService(
+                    thingHandler);
+            firmwareUpdateHandlers.put(thing.getUID().getAsString(), firmwareUpdateHandlerServiceRegistration);
         }
     }
 
@@ -143,10 +169,18 @@ public abstract class BaseThingHandlerFactory implements ThingHandlerFactory {
         return serviceRegistration;
     }
 
-    private ServiceRegistration<ConfigStatusProvider> registerConfigValidatorAsService(ThingHandler thingHandler) {
+    private ServiceRegistration<ConfigStatusProvider> registerConfigStatusProviderAsService(ThingHandler thingHandler) {
         @SuppressWarnings("unchecked")
         ServiceRegistration<ConfigStatusProvider> serviceRegistration = (ServiceRegistration<ConfigStatusProvider>) bundleContext
                 .registerService(ConfigStatusProvider.class.getName(), thingHandler, null);
+        return serviceRegistration;
+    }
+
+    private ServiceRegistration<FirmwareUpdateHandler> registerFirmwareUpdateHandlerAsService(
+            ThingHandler thingHandler) {
+        @SuppressWarnings("unchecked")
+        ServiceRegistration<FirmwareUpdateHandler> serviceRegistration = (ServiceRegistration<FirmwareUpdateHandler>) bundleContext
+                .registerService(FirmwareUpdateHandler.class.getName(), thingHandler, null);
         return serviceRegistration;
     }
 

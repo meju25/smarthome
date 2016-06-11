@@ -257,6 +257,10 @@ public class ThingManager extends AbstractItemEventSubscriber implements ThingTr
                     final ThingHandlerFactory oldThingHandlerFactory = findThingHandlerFactory(thing.getThingTypeUID());
                     if (oldThingHandlerFactory != null) {
                         unregisterHandler(thing, oldThingHandlerFactory);
+                        waitUntilHandlerUnregistered(thing, 60 * 1000);
+                    } else {
+                        throw new RuntimeException(
+                                "No ThingHandlerFactory available that can handle " + thing.getThingTypeUID());
                     }
 
                     // Set the new channels
@@ -276,6 +280,24 @@ public class ThingManager extends AbstractItemEventSubscriber implements ThingTr
 
                     logger.debug("Changed ThingType of Thing {} to {}. New ThingHandler is {}.",
                             thing.getUID().toString(), thing.getThingTypeUID(), thing.getHandler().toString());
+                }
+
+                private void waitUntilHandlerUnregistered(final Thing thing, int timeout) {
+                    for (int i = 0; i < timeout / 100; i++) {
+                        if (thing.getHandler() == null && thingHandlers.get(thing.getUID()) == null) {
+                            return;
+                        }
+                        try {
+                            Thread.sleep(100);
+                            logger.debug("Waiting for handler deregistration to complete for thing {}. Took already {}ms.",
+                                    thing.getUID().getAsString(), i * 100);
+                        } catch (InterruptedException e) {
+                            return;
+                        }
+                    }
+                    throw new RuntimeException(MessageFormat.format(
+                            "Thing type migration failed for {0}. The handler deregistration did not complete within {1}ms.",
+                            thing.getUID().getAsString(), timeout));
                 }
 
                 private void waitForRunningHandlerRegistrations(ThingUID thingUID) {
@@ -658,13 +680,14 @@ public class ThingManager extends AbstractItemEventSubscriber implements ThingTr
     private void initializeHandler(final ThingHandler thingHandler) {
         Bundle bundle = null;
         for (BundleProcessor proc : bundleProcessors) {
-            bundle = proc.isFinishedLoading(thingHandler);
-            if (bundle != null) {
-                logger.trace("Marking '{}' vetoed by '{}'", bundle.getSymbolicName(), proc);
+            Bundle b = proc.isFinishedLoading(thingHandler);
+            if (b != null) {
+                bundle = b;
+                logger.trace("Marking '{}' vetoed by '{}'", b.getSymbolicName(), proc);
                 initializerVetoes.put(bundle, proc);
                 if (!initializerQueue.containsEntry(bundle, thingHandler)) {
-                    logger.trace("Queueing '{}' in bundle '{}'", thingHandler, bundle.getSymbolicName());
-                    initializerQueue.put(bundle.getSymbolicName(), thingHandler);
+                    logger.trace("Queueing '{}' in bundle '{}'", thingHandler, b.getSymbolicName());
+                    initializerQueue.put(b.getSymbolicName(), thingHandler);
                 }
             }
         }

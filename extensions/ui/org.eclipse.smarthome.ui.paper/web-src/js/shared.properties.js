@@ -1,12 +1,13 @@
 'use strict';
 
-angular.module('PaperUI.controllers.rules').service('sharedProperties', function() {
+angular.module('PaperUI.controllers').service('sharedProperties', function() {
     var triggersArray = [];
     var actionsArray = [];
     var conditionsArray = [];
     var tId = 1, aId = 1, cId = 1;
     var params = [];
     var moduleTypes = [];
+    var isDirty = false;
     return {
         updateParams : function(elem) {
             params.push(elem);
@@ -133,6 +134,38 @@ angular.module('PaperUI.controllers.rules').service('sharedProperties', function
         setModuleTypes : function(mTypes) {
             moduleTypes = mTypes;
         }
-
     }
+});
+angular.module('PaperUI.constants').constant('itemConfig', {
+    'types' : [ {
+        name : "SwitchItem",
+        value : "Switch"
+    }, {
+        name : "ContactItem",
+        value : "Contact"
+    }, {
+        name : "StringItem",
+        value : "String"
+    }, {
+        name : "NumberItem",
+        value : "Number"
+    }, {
+        name : "DimmerItem",
+        value : "Dimmer"
+    }, {
+        name : "DateTimeItem",
+        value : "DateTime"
+    }, {
+        name : "ColorItem",
+        value : "Color"
+    }, {
+        name : "ImageItem",
+        value : "Image"
+    }, {
+        name : "PlayerItem",
+        value : "Player"
+    }, {
+        name : "LocationItem",
+        value : "Location"
+    } ]
 });
